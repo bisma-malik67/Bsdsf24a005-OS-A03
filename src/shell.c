@@ -1,54 +1,112 @@
 #include "shell.h"
+#include <dirent.h>
 
 // ---------- History storage ----------
-static char* history[HISTORY_SIZE];
+static char* hist_buf[HISTORY_SIZE];
 static int hist_count = 0;
 
 void hist_add(const char* cmdline) {
     if (hist_count == HISTORY_SIZE) {
         // History is full: drop the oldest, shift everything up by one
-        free(history[0]);
+        free(hist_buf[0]);
         for (int i = 1; i < HISTORY_SIZE; i++) {
-            history[i - 1] = history[i];
+            hist_buf[i - 1] = hist_buf[i];
         }
         hist_count--;
     }
-    history[hist_count++] = strdup(cmdline);
+    hist_buf[hist_count++] = strdup(cmdline);
 }
 
 char* hist_get(int n) {
     if (n < 1 || n > hist_count) {
         return NULL;
     }
-    return history[n - 1];
+    return hist_buf[n - 1];
 }
 
 void hist_print(void) {
     for (int i = 0; i < hist_count; i++) {
-        printf("%d  %s\n", i + 1, history[i]);
+        printf("%d  %s\n", i + 1, hist_buf[i]);
     }
 }
 
-// ---------- Reading and parsing ----------
-char* read_cmd(char* prompt, FILE* fp) {
-    printf("%s", prompt);
-    char* cmdline = (char*) malloc(sizeof(char) * MAX_LEN);
-    int c, pos = 0;
+// ---------- Tab completion ----------
+static const char* builtin_names[] = {
+    "exit", "cd", "help", "jobs", "history", NULL
+};
 
-    while ((c = getc(fp)) != EOF) {
-        if (c == '\n') break;
-        cmdline[pos++] = c;
-    }
+#define MAX_MATCHES 4096
+static char* matches[MAX_MATCHES];
+static int match_count, match_index;
 
-    if (c == EOF && pos == 0) {
-        free(cmdline);
-        return NULL; // Handle Ctrl+D
+static int already_have(const char* name) {
+    for (int i = 0; i < match_count; i++) {
+        if (strcmp(matches[i], name) == 0) return 1;
     }
-    
-    cmdline[pos] = '\0';
-    return cmdline;
+    return 0;
 }
 
+// readline calls this again and again. state == 0 means "new completion".
+// Each call returns the next match, or NULL when there are no more.
+static char* command_generator(const char* text, int state) {
+    if (state == 0) {
+        match_count = 0;
+        match_index = 0;
+        size_t len = strlen(text);
+
+        // 1) built-in commands
+        for (int i = 0; builtin_names[i] != NULL; i++) {
+            if (strncmp(builtin_names[i], text, len) == 0 && match_count < MAX_MATCHES) {
+                matches[match_count++] = strdup(builtin_names[i]);
+            }
+        }
+
+        // 2) executables found in every directory of $PATH
+        char* path = getenv("PATH");
+        if (path != NULL) {
+            char* pathcopy = strdup(path);   // strtok modifies its input
+            char* dir = strtok(pathcopy, ":");
+            while (dir != NULL) {
+                DIR* d = opendir(dir);
+                if (d != NULL) {
+                    struct dirent* e;
+                    while ((e = readdir(d)) != NULL && match_count < MAX_MATCHES) {
+                        if (strncmp(e->d_name, text, len) != 0) continue;
+                        if (already_have(e->d_name)) continue;
+
+                        char full[1024];
+                        snprintf(full, sizeof(full), "%s/%s", dir, e->d_name);
+                        if (access(full, X_OK) == 0) {
+                            matches[match_count++] = strdup(e->d_name);
+                        }
+                    }
+                    closedir(d);
+                }
+                dir = strtok(NULL, ":");
+            }
+            free(pathcopy);
+        }
+    }
+
+    if (match_index < match_count) {
+        return matches[match_index++];   // readline will free() it
+    }
+    return NULL;
+}
+
+// Called by readline when TAB is pressed.
+//  start == 0 and no '/' in the word -> we are completing a COMMAND name
+//  otherwise -> return NULL so readline does its default FILENAME completion
+char** shell_completion(const char* text, int start, int end) {
+    (void)end;
+    if (start == 0 && strchr(text, '/') == NULL) {
+        rl_attempted_completion_over = 1; // don't fall back to filenames
+        return rl_completion_matches(text, command_generator);
+    }
+    return NULL;
+}
+
+// ---------- Parsing ----------
 char** tokenize(char* cmdline) {
     // Edge case: empty command line
     if (cmdline == NULL || cmdline[0] == '\0' || cmdline[0] == '\n') {

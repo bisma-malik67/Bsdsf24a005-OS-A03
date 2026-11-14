@@ -4,7 +4,12 @@ int main() {
     char* cmdline;
     char** arglist;
 
-    while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
+    // Tell readline to use our completion function when TAB is pressed
+    rl_attempted_completion_function = shell_completion;
+
+    // readline() prints the prompt, handles editing/arrow keys, returns the line
+    // It returns NULL on Ctrl+D (EOF)
+    while ((cmdline = readline(PROMPT)) != NULL) {
 
         // Handle !n BEFORE tokenizing and BEFORE adding to history
         if (cmdline[0] == '!') {
@@ -20,9 +25,12 @@ int main() {
             printf("%s\n", cmdline); // show what is going to run
         }
 
-        // Store non-empty commands in history
+        // Store non-empty commands in both histories:
+        //  - hist_add()    : our own array (history built-in, !n)
+        //  - add_history() : readline's list (Up/Down arrow keys)
         if (cmdline[0] != '\0') {
             hist_add(cmdline);
+            add_history(cmdline);
         }
 
         if ((arglist = tokenize(cmdline)) != NULL) {
@@ -37,7 +45,7 @@ int main() {
             }
             free(arglist);
         }
-        free(cmdline);
+        free(cmdline);   // readline() uses malloc, so free() is correct
     }
 
     printf("\nShell exited.\n");
