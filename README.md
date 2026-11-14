@@ -1,1 +1,4 @@
-# Bsdsf24a005-OS-A03
+# My Shell
+
+Build: make
+Run: ./bin/myshell
