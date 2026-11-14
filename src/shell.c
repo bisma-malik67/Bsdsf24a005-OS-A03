@@ -1,5 +1,35 @@
 #include "shell.h"
 
+// ---------- History storage ----------
+static char* history[HISTORY_SIZE];
+static int hist_count = 0;
+
+void hist_add(const char* cmdline) {
+    if (hist_count == HISTORY_SIZE) {
+        // History is full: drop the oldest, shift everything up by one
+        free(history[0]);
+        for (int i = 1; i < HISTORY_SIZE; i++) {
+            history[i - 1] = history[i];
+        }
+        hist_count--;
+    }
+    history[hist_count++] = strdup(cmdline);
+}
+
+char* hist_get(int n) {
+    if (n < 1 || n > hist_count) {
+        return NULL;
+    }
+    return history[n - 1];
+}
+
+void hist_print(void) {
+    for (int i = 0; i < hist_count; i++) {
+        printf("%d  %s\n", i + 1, history[i]);
+    }
+}
+
+// ---------- Reading and parsing ----------
 char* read_cmd(char* prompt, FILE* fp) {
     printf("%s", prompt);
     char* cmdline = (char*) malloc(sizeof(char) * MAX_LEN);
@@ -61,6 +91,7 @@ char** tokenize(char* cmdline) {
     return arglist;
 }
 
+// ---------- Built-in commands ----------
 // Returns 1 if arglist[0] was a built-in (and it has been handled),
 // returns 0 if it is not a built-in (so main should call execute()).
 int handle_builtin(char** arglist) {
@@ -91,11 +122,18 @@ int handle_builtin(char** arglist) {
         printf("  cd <dir>    - Change the current working directory\n");
         printf("  help        - Display this help message\n");
         printf("  jobs        - List background jobs (not implemented yet)\n");
+        printf("  history     - Show the last %d commands\n", HISTORY_SIZE);
+        printf("  !n          - Re-run the n-th command from history\n");
         return 1;
     }
 
     if (strcmp(arglist[0], "jobs") == 0) {
         printf("Job control not yet implemented.\n");
+        return 1;
+    }
+
+    if (strcmp(arglist[0], "history") == 0) {
+        hist_print();
         return 1;
     }
 
