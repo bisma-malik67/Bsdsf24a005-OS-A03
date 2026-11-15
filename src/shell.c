@@ -136,14 +136,14 @@ int handle_builtin(char** arglist) {
         printf("  exit        - Terminate the shell\n");
         printf("  cd <dir>    - Change the current working directory\n");
         printf("  help        - Display this help message\n");
-        printf("  jobs        - List background jobs (not implemented yet)\n");
+        printf("  jobs        - List running background jobs\n");
         printf("  history     - Show the last %d commands\n", HISTORY_SIZE);
         printf("  !n          - Re-run the n-th command from history\n");
         return 1;
     }
 
     if (strcmp(arglist[0], "jobs") == 0) {
-        printf("Job control not yet implemented.\n");
+        jobs_print();
         return 1;
     }
 

@@ -1,8 +1,9 @@
 #include "shell.h"
 
 // Runs  cmd1 | cmd2 | ... | cmdN  (N may be 1, i.e. no pipe at all)
-// Returns the exit status of the LAST command.
-int execute_pipeline(pipeline_t* pl) {
+// Foreground: waits and returns the exit status of the LAST command.
+// Background: does not wait, records the job and returns 0 at once.
+int execute_pipeline(pipeline_t* pl, const char* cmdtext, int background) {
     int n = pl->count;
     pid_t pids[MAX_CMDS];
     int prev_read = -1;   // read end of the previous pipe (-1 = none)
@@ -37,6 +38,15 @@ int execute_pipeline(pipeline_t* pl) {
                 close(fd[1]);
                 close(fd[0]);   // the child never reads from its own output pipe
             }
+            // A background command must not fight the shell for the keyboard,
+            // so its input comes from /dev/null (unless it uses '<')
+            if (background && i == 0 && cmd->infile == NULL) {
+                int f = open("/dev/null", O_RDONLY);
+                if (f >= 0) {
+                    dup2(f, STDIN_FILENO);
+                    close(f);
+                }
+            }
             // '<' and '>' override the pipe
             if (cmd->infile != NULL) {
                 int f = open(cmd->infile, O_RDONLY);
@@ -69,7 +79,13 @@ int execute_pipeline(pipeline_t* pl) {
         prev_read = fd[0];                       // next child reads from here
     }
 
-    // Wait for every child; remember the status of the last one
+    // Background: do NOT wait. Remember the job and return to the prompt.
+    if (background) {
+        job_add(pids[n - 1], cmdtext);
+        return 0;
+    }
+
+    // Foreground: wait for every child; remember the status of the last one
     int status, last_status = 0;
     for (int i = 0; i < n; i++) {
         waitpid(pids[i], &status, 0);

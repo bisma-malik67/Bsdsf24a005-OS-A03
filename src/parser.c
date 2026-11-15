@@ -114,3 +114,60 @@ int parse_pipeline(char** arglist, pipeline_t* pl) {
     cmd->argv[argc] = NULL;
     return 0;
 }
+
+// Splits one input line into separate commands at ';' and '&'.
+//  - A ';' or '&' inside quotes does not split.
+//  - A command ended by '&' is marked as a background command.
+// The line is modified in place (each separator is replaced by '\0') and
+// segs[i].text points into it. Returns the number of commands, or -1 on a
+// syntax error (message already printed).
+int split_commands(char* line, segment_t* segs, int max) {
+    int count = 0;
+    char* start = line;
+    char quote = 0;
+
+    for (char* p = line; ; p++) {
+        char c = *p;
+
+        if (c != '\0') {
+            if (quote != 0) {                 // inside quotes: look only for the closing quote
+                if (c == quote) quote = 0;
+                continue;
+            }
+            if (c == '"' || c == '\'') { quote = c; continue; }
+            if (c != ';' && c != '&') continue;
+        }
+
+        // Here c is ';', '&' or the end of the line: [start, p) is one command
+        while (start < p && (*start == ' ' || *start == '\t')) start++;
+        int blank = 1;
+        for (char* q = start; q < p; q++) {
+            if (*q != ' ' && *q != '\t') { blank = 0; break; }
+        }
+
+        if (blank) {
+            if (c != '\0') {                  // e.g. "; ls"  or  "ls ;; ls"
+                fprintf(stderr, "syntax error near unexpected token '%c'\n", c);
+                return -1;
+            }
+        } else {
+            if (count == max) {
+                fprintf(stderr, "error: too many commands on one line\n");
+                return -1;
+            }
+            // remove spaces at the end of the command text
+            char* e = p;
+            while (e > start && (e[-1] == ' ' || e[-1] == '\t')) e--;
+            *e = '\0';
+
+            segs[count].text = start;
+            segs[count].background = (c == '&');
+            count++;
+        }
+
+        if (c == '\0') break;
+        *p = '\0';                            // cut the string here
+        start = p + 1;
+    }
+    return count;
+}

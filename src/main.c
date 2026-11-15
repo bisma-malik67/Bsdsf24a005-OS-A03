@@ -7,7 +7,11 @@ int main() {
     // Tell readline to use our completion function when TAB is pressed
     rl_attempted_completion_function = shell_completion;
 
-    while ((cmdline = readline(PROMPT)) != NULL) {
+    while (1) {
+        jobs_reap();                     // collect finished background jobs before the prompt
+        cmdline = readline(PROMPT);
+        if (cmdline == NULL) break;      // Ctrl+D
+        jobs_reap();                     // ...and again, in case one finished while we waited
 
         // Handle !n BEFORE tokenizing and BEFORE adding to history
         if (cmdline[0] == '!') {
@@ -23,22 +27,28 @@ int main() {
             printf("%s\n", cmdline); // show what is going to run
         }
 
-        // Store non-empty commands in both histories
+        // Store non-empty commands in both histories (the whole line, once)
         if (cmdline[0] != '\0') {
             hist_add(cmdline);
             add_history(cmdline);
         }
 
-        if ((arglist = tokenize(cmdline)) != NULL) {
-            pipeline_t pl;
+        // Split the line at ';' and '&' into separate commands
+        segment_t segs[MAX_SEGMENTS];
+        int nseg = split_commands(cmdline, segs, MAX_SEGMENTS);
 
+        // Run the commands one after another
+        for (int s = 0; s < nseg; s++) {
+            if ((arglist = tokenize(segs[s].text)) == NULL) continue;
+
+            pipeline_t pl;
             if (parse_pipeline(arglist, &pl) == 0) {
                 // A built-in runs inside the shell itself, but only when it
                 // is a single plain command (no pipe). Otherwise fork+exec.
                 if (pl.count == 1 && handle_builtin(pl.cmds[0].argv) == 1) {
                     // handled
                 } else {
-                    execute_pipeline(&pl);
+                    execute_pipeline(&pl, segs[s].text, segs[s].background);
                 }
             }
 
