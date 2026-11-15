@@ -2,7 +2,6 @@
 
 int main() {
     char* cmdline;
-    char** arglist;
 
     // Tell readline to use our completion function when TAB is pressed
     rl_attempted_completion_function = shell_completion;
@@ -33,31 +32,9 @@ int main() {
             add_history(cmdline);
         }
 
-        // Split the line at ';' and '&' into separate commands
-        segment_t segs[MAX_SEGMENTS];
-        int nseg = split_commands(cmdline, segs, MAX_SEGMENTS);
+        // A normal line, or a multi-line if ... fi block
+        process_input(cmdline);
 
-        // Run the commands one after another
-        for (int s = 0; s < nseg; s++) {
-            if ((arglist = tokenize(segs[s].text)) == NULL) continue;
-
-            pipeline_t pl;
-            if (parse_pipeline(arglist, &pl) == 0) {
-                // A built-in runs inside the shell itself, but only when it
-                // is a single plain command (no pipe). Otherwise fork+exec.
-                if (pl.count == 1 && handle_builtin(pl.cmds[0].argv) == 1) {
-                    // handled
-                } else {
-                    execute_pipeline(&pl, segs[s].text, segs[s].background);
-                }
-            }
-
-            // Free the memory allocated by tokenize()
-            for (int i = 0; arglist[i] != NULL; i++) {
-                free(arglist[i]);
-            }
-            free(arglist);
-        }
         free(cmdline);
     }
 

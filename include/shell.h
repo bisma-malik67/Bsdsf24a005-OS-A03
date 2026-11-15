@@ -47,6 +47,8 @@ int parse_pipeline(char** arglist, pipeline_t* pl);
 // Execution
 int execute_pipeline(pipeline_t* pl, const char* cmdtext, int background);
 int handle_builtin(char** arglist);
+int process_input(char* line);
+int execute_line(char* line);
 
 // Background jobs
 void job_add(pid_t pid, const char* cmd);
