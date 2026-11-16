@@ -47,6 +47,13 @@ int parse_pipeline(char** arglist, pipeline_t* pl);
 // Execution
 int execute_pipeline(pipeline_t* pl, const char* cmdtext, int background);
 int handle_builtin(char** arglist);
+
+// Shell variables
+void var_set(const char* name, const char* value);
+const char* var_get(const char* name);
+void var_print_all(void);
+int handle_variable_builtin(char** arglist);
+void expand_variables(char** arglist);
 int process_input(char* line);
 int execute_line(char* line);
 

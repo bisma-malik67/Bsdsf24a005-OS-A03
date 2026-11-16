@@ -44,6 +44,11 @@ int execute_line(char* line) {
     for (int s = 0; s < nseg; s++) {
         char** arglist = tokenize(segs[s].text);
         if (arglist == NULL) continue;
+        expand_variables(arglist);                   // replace $NAME by its value
+        if (arglist[0] == NULL) {                    // everything expanded to nothing
+            free(arglist);
+            continue;
+        }
 
         pipeline_t pl;
         if (parse_pipeline(arglist, &pl) != 0) {

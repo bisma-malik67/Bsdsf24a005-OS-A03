@@ -32,7 +32,7 @@ void hist_print(void) {
 
 // ---------- Tab completion ----------
 static const char* builtin_names[] = {
-    "exit", "cd", "help", "jobs", "history", NULL
+    "exit", "cd", "help", "jobs", "history", "set", NULL
 };
 
 #define MAX_MATCHES 4096
@@ -139,6 +139,8 @@ int handle_builtin(char** arglist) {
         printf("  jobs        - List running background jobs\n");
         printf("  history     - Show the last %d commands\n", HISTORY_SIZE);
         printf("  !n          - Re-run the n-th command from history\n");
+        printf("  set         - Show all shell variables\n");
+        printf("  NAME=value  - Create or change a shell variable\n");
         return 1;
     }
 
@@ -152,5 +154,5 @@ int handle_builtin(char** arglist) {
         return 1;
     }
 
-    return 0; // not a built-in
+    return handle_variable_builtin(arglist);  // "set" and NAME=value, otherwise 0
 }
