@@ -141,6 +141,11 @@ int handle_builtin(char** arglist) {
         printf("  !n          - Re-run the n-th command from history\n");
         printf("  set         - Show all shell variables\n");
         printf("  NAME=value  - Create or change a shell variable\n");
+        printf("Operators:\n");
+        printf("  cmd > file, cmd < file   Redirect output / input\n");
+        printf("  cmd1 | cmd2              Pipe output of cmd1 into cmd2\n");
+        printf("  cmd1 ; cmd2              Run commands one after another\n");
+        printf("  cmd &                    Run a command in the background\n");
         return 1;
     }
 
